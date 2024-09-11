@@ -1,0 +1,1 @@
+dotnet run --project yocar.Insurance --migrate-database
