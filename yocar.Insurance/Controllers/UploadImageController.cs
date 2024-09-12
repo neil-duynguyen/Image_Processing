@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.Drawing; // Đảm bảo bạn đã cài đặt System.Drawing.Common
+using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using yocar.Insurance.Services;
@@ -27,7 +27,6 @@ namespace yocar.Insurance.Controllers
                 if (file == null || file.Length == 0)
                     return BadRequest("No file uploaded.");
 
-                // Gọi dịch vụ với IFormFile
                 var qrData = await _uploadImageServices.ExtractQrDataFromImage(file);
 
                 return Ok(qrData);
