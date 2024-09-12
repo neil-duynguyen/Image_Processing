@@ -19,30 +19,18 @@ namespace yocar.Insurance.Controllers
             _uploadImageServices = uploadImageServices;
         }
 
-      /*  [HttpPost]
-        public async Task<IActionResult> UpImage(IFormFile file)
-        {
-            if (file == null || file.Length == 0)
-            {
-                return BadRequest("No file uploaded.");
-            }
-
-            try
-            {
-                return Ok(await _uploadImageServices.UploadImage(file));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest($"An error occurred: {ex.Message}");
-            }
-        }*/
-
         [HttpPost("extract-qr-data")]
-        public async Task<IActionResult> ExtractQrDataFromImage(IFormFile file)
+        public async Task<IActionResult> ExtractQrDataFromQR(IFormFile file)
         {
             try
             {
-                return Ok(await _uploadImageServices.ExtractQrDataFromImage(file));
+                if (file == null || file.Length == 0)
+                    return BadRequest("No file uploaded.");
+
+                // Gọi dịch vụ với IFormFile
+                var qrData = await _uploadImageServices.ExtractQrDataFromImage(file);
+
+                return Ok(qrData);
             }
             catch (Exception ex)
             {
@@ -50,5 +38,17 @@ namespace yocar.Insurance.Controllers
             }
         }
 
+        [HttpPost("extract-image-data")]
+        public async Task<IActionResult> ExtractQrDataFromImage(IFormFile file)
+        {
+            try
+            {
+                return Ok(await _uploadImageServices.ExtractTextWithOCRTesseract(file));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
     }
 }
