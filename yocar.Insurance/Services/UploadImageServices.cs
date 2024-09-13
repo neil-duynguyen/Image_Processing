@@ -2,19 +2,8 @@
 using Volo.Abp.Application.Services;
 using System.Drawing;
 using ZXing;
-using OpenCvSharp.Text;
-using OpenCvSharp;
-using Mat = OpenCvSharp.Mat;
-using QRCodeDetector = OpenCvSharp.QRCodeDetector;
-using OutputArray = OpenCvSharp.OutputArray;
-using Point = OpenCvSharp.Point;
-using Tesseract;
-using Rect = OpenCvSharp.Rect;
-using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks.Dataflow;
 using static yocar.Insurance.Entities.DataCCCDEntity;
 
 
