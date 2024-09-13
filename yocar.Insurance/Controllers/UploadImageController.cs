@@ -19,7 +19,7 @@ namespace yocar.Insurance.Controllers
             _uploadImageServices = uploadImageServices;
         }
 
-        [HttpPost("extract-qr-data")]
+/*        [HttpPost("extract-qr-data")]
         public async Task<IActionResult> ExtractQrDataFromQR(IFormFile file)
         {
             try
@@ -35,14 +35,14 @@ namespace yocar.Insurance.Controllers
             {
                 return BadRequest(ex.Message);
             }
-        }
+        }*/
 
         [HttpPost("extract-image-data")]
-        public async Task<IActionResult> ExtractQrDataFromImage(IFormFile file)
+        public async Task<IActionResult> ExtractDataFromImage(IFormFileCollection file)
         {
             try
             {
-                return Ok(await _uploadImageServices.ExtractTextWithOCRTesseract(file));
+                return Ok(await _uploadImageServices.ProcessImageAsync(file));
             }
             catch (Exception ex)
             {

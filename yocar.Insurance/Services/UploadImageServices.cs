@@ -7,6 +7,15 @@ using OpenCvSharp;
 using Mat = OpenCvSharp.Mat;
 using QRCodeDetector = OpenCvSharp.QRCodeDetector;
 using OutputArray = OpenCvSharp.OutputArray;
+using Point = OpenCvSharp.Point;
+using Tesseract;
+using Rect = OpenCvSharp.Rect;
+using System.IO;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks.Dataflow;
+using static yocar.Insurance.Entities.DataCCCDEntity;
 
 
 namespace yocar.Insurance.Services
@@ -14,32 +23,14 @@ namespace yocar.Insurance.Services
     public class UploadImageServices : ApplicationService
     {
         private const string TesseractDataPath = @"./tessdata";
-        public static class BitmapExtension;
-        public async Task<object> ExtractQrDataFromImage(IFormFile file)
-        {
-            if (file == null || file.Length == 0) throw new Exception("No file uploaded.");
 
-            using (var memoryStream = new MemoryStream())
-            {
-                await file.CopyToAsync(memoryStream);
-                var imageBytes = memoryStream.ToArray();
+        private static readonly HttpClient _httpClient = new HttpClient();
 
-                Mat processedImage = ProcessImage(imageBytes);
-
-                // Convert the processed image to byte array
-                using (var processedMemoryStream = new MemoryStream())
-                {
-                    Cv2.ImEncode(".png", processedImage, out var processedImageBytes);
-                    processedMemoryStream.Write(processedImageBytes, 0, processedImageBytes.Length);
-                    processedMemoryStream.Seek(0, SeekOrigin.Begin);
- 
-                    return ExtractQrCodeData(processedMemoryStream.ToArray());
-                }
-            }
-        }
+        private const string ApiUrl = "https://api.fpt.ai/vision/idr/vnm";
+        private const string ApiKey = "L5Q03m0Tga9w37XlgNzA0k726T3oDIXH";
 
         // Extract QR code data from the processed image
-        private object ExtractQrCodeData(byte[] imageBytes)
+        private DataCCCD ExtractQrCodeData(byte[] imageBytes)
         {
             using (var ms = new MemoryStream(imageBytes))
             {
@@ -56,10 +47,9 @@ namespace yocar.Insurance.Services
                     if (dataParts.Length < 7)
                         throw new Exception("Invalid QR code format.");
 
-                    return new
+                    return new DataCCCD
                     {
-                        IdNumberCccd = dataParts[0],
-                        IdNumberCmnd = dataParts[1],
+                        IdNumber = dataParts[0],
                         Name = dataParts[2],
                         DateOfBirth = $"{dataParts[3].Substring(0, 2)}/{dataParts[3].Substring(2, 2)}/{dataParts[3].Substring(4, 4)}",
                         Gender = dataParts[4],
@@ -70,7 +60,7 @@ namespace yocar.Insurance.Services
             }
         }
 
-        public async Task<string> ExtractTextWithOCRTesseract(IFormFile file)
+/*        public async Task<string> ExtractTextWithOCRTesseract(IFormFile file)
         {
             using (var memoryStream = new MemoryStream())
             {
@@ -78,41 +68,89 @@ namespace yocar.Insurance.Services
 
                 var imageBytes = memoryStream.ToArray();
 
-                var denoised = ProcessImage(imageBytes);
-
-                using (var ocr = OCRTesseract.Create(TesseractDataPath, "vie", null, 3, 3))
+                using (var img = Mat.FromImageData(imageBytes))
                 {
-                    // Prepare output variables
-                    string text;
-                    OpenCvSharp.Rect[] boxes = null;
-                    string[] words = null;
-                    float[] confidences = null;
+                    using (var ocr = OCRTesseract.Create(TesseractDataPath, "vie", null, 3, 3))
+                    {
+                        // Prepare output variables
+                        string text;
+                        OpenCvSharp.Rect[] boxes = null;
+                        string[] words = null;
+                        float[] confidences = null;
 
-                    ocr.Run(denoised, out text, out boxes, out words, out confidences, ComponentLevels.Word);
-                    return text;
+                        ocr.Run(img, out text, out boxes, out words, out confidences, ComponentLevels.Word);
+                        return text;
+                    }
                 }
-
             }
-        }
+        }*/
 
-
-
-        public Mat ProcessImage(byte[] imageBytes)
+        public async Task<DataCCCD> ExtractQrDataFromImage(IFormFile file)
         {
-            Mat img = Cv2.ImDecode(imageBytes, ImreadModes.Color);
+            if (file == null || file.Length == 0) throw new Exception("No file uploaded.");
 
-            if (img.Empty())
+            using (var memoryStream = new MemoryStream())
             {
-                throw new InvalidOperationException("Failed to load image.");
+                await file.CopyToAsync(memoryStream);
+                var imageBytes = memoryStream.ToArray();
+                return ExtractQrCodeData(imageBytes);
             }
-
-            Mat processedImage = new Mat();
-
-            Cv2.FastNlMeansDenoisingColored(img, processedImage, 10, 10, 7, 21);
-
-            return processedImage;
         }
 
+        public async Task<object> ProcessImageAsync(IFormFileCollection files)
+        {
+            var data = new DataCCCD();
+            var dataFromQR = new DataCCCD();
+            foreach (var file in files)
+            {
+                using var content = new MultipartFormDataContent();
+                using var fileStream = file.OpenReadStream();
+                var streamContent = new StreamContent(fileStream)
+                {
+                    Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png") }
+                };
+                content.Add(streamContent, "image", file.FileName);
 
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("api-key", ApiKey);
+
+                var response = await _httpClient.PostAsync(ApiUrl, content);
+                response.EnsureSuccessStatusCode();
+
+                var jsonResult = await response.Content.ReadAsStringAsync();
+                var jsonObject = JObject.Parse(jsonResult);
+                var dataArray = jsonObject["data"] as JArray;
+
+                if (dataArray == null) throw new Exception("Error Process Image.");
+
+                var dataItem = dataArray.FirstOrDefault(item => item["id"] != null);
+
+                if (dataItem != null)
+                {
+                    var apiResponse = JsonConvert.DeserializeObject<ApiResponseFront>(jsonResult);
+                    var frontData = apiResponse?.Data?.FirstOrDefault();
+                    if (frontData != null)
+                    {
+                        data.IdNumber = frontData.Id;
+                        data.Name = frontData.Name;
+                        data.DateOfBirth = frontData.Dob;
+                        data.Gender = frontData.Sex;
+                        data.Address = frontData.Address;
+                    }
+
+                    dataFromQR = (DataCCCD)await ExtractQrDataFromImage(file);
+                }
+                else
+                {
+                    var apiResponseBackside = JsonConvert.DeserializeObject<ApiResponseBackside>(jsonResult);
+                    var backsideData = apiResponseBackside?.Data?.FirstOrDefault();
+                    if (backsideData != null)
+                    {
+                        data.DateOfIssue = backsideData.Issue_Date;
+                    }
+                }
+            }
+            return CompareDataCCCDs(data, dataFromQR);
+        }
     }
 }
